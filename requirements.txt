@@ -1,0 +1,6 @@
+PyAutoGUI~=0.9.54
+tesserocr~=2.6.1
+jellyfish~=1.0.1
+requests~=2.31.0
+Pillow~=10.0.1
+matplotlib~=3.8.0
