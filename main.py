@@ -1,13 +1,14 @@
 import pyautogui
 import tesserocr
 from PIL import Image
-from fastgrab import screenshot
-from matplotlib import pyplot as plt
 import jellyfish
 import json
 import requests
 import random
 import logging
+import mss.tools
+import yaml
+
 logging.basicConfig(filename='pylot.log', encoding='utf-8', level=logging.DEBUG, format='%(asctime)s %(message)s')
 
 # --------------------- SETUP -----------------------
@@ -20,26 +21,34 @@ logging.basicConfig(filename='pylot.log', encoding='utf-8', level=logging.DEBUG,
 # --------------------------------------------------
 
 # server data endpoint config
-url = 'http://localhost:8383/scout'
-key = "dev"
+with open("destination.txt", "r") as f:
+    url = f.read().strip()
+with open("key.txt", "r") as f:
+    key = f.read().strip()
 
-# screen regions
-region_overview = (4808, 496, 4948-4808, 651-496)
-region_dscan = (4295, 560, 4539-4295, 1130-560)
-region_system = (4082, 338, 4353-4082, 376-341)
-region_status = (4423, 1942, 4767-4423, 2016-1942)
-region_probe = (4887, 768, 5086-4887, 1071-768)
-
-# button positions
-position_jump = (4789, 335)
-position_scan = (4611, 1167)
-
+# screen regions from config
+with open("screen_config.yaml") as file:
+    screen_config = yaml.safe_load(file)
+    position_jump = screen_config["jump"]
+    position_scan = screen_config["scan"]
+    region_overview = screen_config["overview"]
+    region_dscan = screen_config["dscan"]
+    region_system = screen_config["system"]
+    region_probe = screen_config["probe"]
 
 # image filter
 threshold = 180
 
 # setup fastgrap screenshot engine
-grab = screenshot.Screenshot()
+sct = mss.mss()
+
+
+def grab_win(bbox):
+    monitor = {"top": bbox[1], "left": bbox[0], "width": bbox[2], "height": bbox[3]}
+    sct_img = sct.grab(monitor)
+    img = Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX").convert("L").point(
+        lambda p: p if p > threshold else 0)
+    return img
 
 
 # import pochven system list form textfile
@@ -67,12 +76,13 @@ def match_system(ocr_estimate: str) -> (str, int):
 
     return best_match, best_index
 
+
 # get the next system number
 def next_system(index: int) -> int:
-    if index + 1 >= len(POCHVEN)-3:
+    if index + 1 >= len(POCHVEN) - 3:
         return 0
     else:
-        return index+1
+        return index + 1
 
 
 # OCR for the overview with pixel coordinates
@@ -97,14 +107,14 @@ def extract_overview(img_overview):
 def click_on_gate(gate):
     bbox = gate[1]
     middle = [bbox[0], bbox[1]]
-    pyautogui.moveTo(middle[0]+region_overview[0],middle[1]+region_overview[1],0.3+random.random()*0.3)
-    pyautogui.click(middle[0]+region_overview[0],middle[1]+region_overview[1],1, duration=0.5+random.random()*0.3)
+    pyautogui.moveTo(middle[0] + region_overview[0], middle[1] + region_overview[1], 0.3 + random.random() * 0.3)
+    pyautogui.click(middle[0] + region_overview[0], middle[1] + region_overview[1], 1,
+                    duration=0.5 + random.random() * 0.3)
 
 
 # ocr, cleanup and matching to get the current position
 def get_current_system():
-    raw_system = grab.capture(bbox=region_system)
-    img_system = Image.fromarray(raw_system[:, :, 0:3], "RGB").convert('L').point( lambda p: p if p > 160 else 0 )
+    img_system = grab_win(region_system)
     system = tesserocr.image_to_text(img_system)
     system = system.strip().split(" ")[0].strip()
     system = match_system(system)
@@ -118,30 +128,18 @@ def get_current_system():
 def jump_to_gate(gate):
     click_on_gate(gate)
 
-    pyautogui.moveTo(position_jump[0],position_jump[1],0.3+random.random()*0.3)
+    pyautogui.moveTo(position_jump[0], position_jump[1], 0.3 + random.random() * 0.3)
 
     # disable for dry run
-    pyautogui.click(position_jump[0],position_jump[1],1, duration=0.5+random.random()*0.3)
+    pyautogui.click(position_jump[0], position_jump[1], 1, duration=0.5 + random.random() * 0.3)
 
 
-def explore(check):
+def explore():
     logging.info("EXPLORE NEW SYSTEM")
 
-    raw_overview = grab.capture(bbox=region_overview)
-    raw_dscan = grab.capture(bbox=region_dscan)
-    raw_probe = grab.capture(bbox=region_probe)
-
-    img_overview = Image.fromarray(raw_overview[:, :, 0:3], "RGB").convert('L').point( lambda p: p if p > threshold else 0)
-    img_probe = Image.fromarray(raw_probe[:, :, 0:3], "RGB").convert('L').point(lambda p: p if p > threshold else 0)
-    img_dscan = Image.fromarray(raw_dscan[:, :, 0:3], "RGB").convert('L').point(lambda p: p if p > threshold else 0)
-
-    if check:
-        plt.imshow(img_overview)
-        plt.show()
-        plt.imshow(img_probe)
-        plt.show()
-        plt.imshow(img_dscan)
-        plt.show()
+    img_overview = grab_win(region_overview)
+    img_probe = grab_win(region_probe)
+    img_dscan = grab_win(region_dscan)
 
     # OCR Text analysis
     system = get_current_system()
@@ -198,6 +196,6 @@ def jumping():
 
 if __name__ == '__main__':
     while True:
-        explore(False)
+        explore()
         jumping()
-        pyautogui.sleep(5+random.random()*3)
+        pyautogui.sleep(5 + random.random() * 3)
