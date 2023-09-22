@@ -1,1 +1,1 @@
-http://192.168.105.58:8383/scout
+https://pochven.revwal.de/scout
