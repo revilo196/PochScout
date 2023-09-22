@@ -1,4 +1,4 @@
 venv
 .idea
-coordinates.log
 pylot.log
+screen_config.yaml

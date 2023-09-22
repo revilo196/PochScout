@@ -111,8 +111,7 @@ def draw_rectangle(drawing, bbox, outline):
                       outline=outline, width=10)
 
 
-if __name__ == '__main__':
-
+def main():
     while True:
         # button positions
         position_jump = ask_for_position("Jump")
@@ -158,3 +157,8 @@ if __name__ == '__main__':
               'dscan': region_dscan}
 
     yaml.safe_dump(config, open("screen_config.yaml", "w"))
+
+
+if __name__ == '__main__':
+    main()
+
